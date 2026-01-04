@@ -33,3 +33,4 @@ youtube-search-python
 wget
 ytmusicapi
 aria2
+safoneAPI
