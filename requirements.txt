@@ -30,3 +30,6 @@ uvloop
 yt-dlp
 youtube-search
 youtube-search-python
+wget
+ytmusicapi
+aria2
