@@ -8,8 +8,8 @@ from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from ytmusicapi import YTMusic # Updated library
 
-from Spy.utils.database import is_on_off
-from Spy.utils.formatters import time_to_seconds
+from PURVIMUSIC.utils.database import is_on_off
+from PURVIMUSIC.utils.formatters import time_to_seconds
 
 # Global instance of YTMusic for faster performance
 yt_music = YTMusic()
@@ -29,7 +29,7 @@ async def shell_cmd(cmd):
     return out.decode("utf-8")
 
 # If you don't have cookies.txt, it will still work but might get blocked later
-cookies_file = "Spy/cookies.txt"
+cookies_file = "PURVIMUSIC/cookies.txt"
 if not os.path.exists(cookies_file):
     cookies_file = None
 
