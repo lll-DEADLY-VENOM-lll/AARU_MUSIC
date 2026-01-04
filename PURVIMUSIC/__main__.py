@@ -38,14 +38,13 @@ async def init():
 
     await app.start()
     
-    # --- Plugins loading with error handling ---
+    # --- Plugins loading (Dot issue fixed) ---
     for all_module in ALL_MODULES:
         try:
-            # Yahan '.' add kiya hai taaki path sahi rahe
-            importlib.import_module("PURVIMUSIC.plugins." + all_module)
+            # Yahan se maine extra dot hata diya hai
+            importlib.import_module("PURVIMUSIC.plugins" + all_module)
         except Exception as e:
-            LOGGER("PURVIMUSIC.plugins").error(f"Plugin {all_module} load nahi ho paya: {e}")
-            continue # Agar ek plugin kharab hai toh dusre load hone do
+            LOGGER("PURVIMUSIC.plugins").error(f"Plugin{all_module} load nahi ho paya: {e}")
             
     LOGGER("PURVIMUSIC.plugins").info("𝐀𝐥𝐥 𝐅𝐞𝐚𝐭𝐮𝐫𝐞𝐬 𝐋𝐨𝐚𝐝𝐞𝐝 𝐁𝐚𝐛𝐲🥳...")
     
@@ -53,7 +52,6 @@ async def init():
     await PURVI.start()
     
     try:
-        # Test stream to check log group
         await PURVI.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
     except NoActiveGroupCall:
         LOGGER("PURVIMUSIC").error(
@@ -74,5 +72,4 @@ async def init():
 
 
 if __name__ == "__main__":
-    # Naye loop system ke liye
     asyncio.get_event_loop().run_until_complete(init())
