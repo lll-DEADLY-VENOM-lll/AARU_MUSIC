@@ -44,7 +44,7 @@ daxxhub
 img2pdf
 SpeechRecognition
 youtube-search-python
-beautifulsoup4 lxml
+beautifulsoup4
 whois
 pyfiglet
 qrcode
