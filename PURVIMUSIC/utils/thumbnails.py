@@ -1,143 +1,180 @@
-import asyncio, os, re, httpx, aiofiles.os
-from io import BytesIO 
+import os
+import re
+import aiofiles
+import aiohttp
+import asyncio
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
-from aiofiles.os import path as aiopath
-# Video को भी इम्पोर्ट करें
 from youtubesearchpython.__future__ import VideosSearch, Video
-
+from config import YOUTUBE_IMG_URL
 from ..logging import LOGGER
 
-def load_fonts():
-    try:
-        return {
-            "cfont": ImageFont.truetype("PURVIMUSIC/assets/cfont.ttf", 24),
-            "tfont": ImageFont.truetype("PURVIMUSIC/assets/font.ttf", 30),
-        }
-    except Exception as e:
-        LOGGER.error(f"Font loading error: {e}, using default fonts")
-        return {
-            "cfont": ImageFont.load_default(),
-            "tfont": ImageFont.load_default(),
-        }
+# Function to resize images while maintaining quality
+def resize_image(image, max_width, max_height):
+    width_ratio = max_width / image.size[0]
+    height_ratio = max_height / image.size[1]
+    new_width = int(width_ratio * image.size[0])
+    new_height = int(height_ratio * image.size[1])
+    return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-FONTS = load_fonts()
-FALLBACK_IMAGE_PATH = "PURVIMUSIC/assets/controller.png"
-YOUTUBE_IMG_URL = "https://i.ytimg.com/vi/default.jpg"
+# Function to split long titles into two lines
+def truncate_title(text):
+    words = text.split(" ")
+    line1, line2 = "", ""    
+    for word in words:
+        if len(line1) + len(word) < 30:        
+            line1 += " " + word
+        elif len(line2) + len(word) < 30:       
+            line2 += " " + word
+    return [line1.strip(), line2.strip()]
 
-async def resize_youtube_thumbnail(img: Image.Image) -> Image.Image:
-    target_width, target_height = 1280, 720
+# Function to create the circular thumbnail crop
+def crop_to_circle(img, size, border_width, crop_scale=1.5):
     img = img.convert("RGBA")
-    aspect_ratio = img.width / img.height
-    target_ratio = target_width / target_height
-
-    if aspect_ratio > target_ratio:
-        new_height = target_height
-        new_width = int(new_height * aspect_ratio)
-    else:
-        new_width = target_width
-        new_height = int(new_width / aspect_ratio)
-
-    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    left = (new_width - target_width) // 2
-    top = (new_height - target_height) // 2
-    img = img.crop((left, top, left + target_width, top + target_height))
-    return ImageEnhance.Sharpness(img).enhance(1.5)
-
-async def fetch_image(url: str) -> Image.Image:
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, timeout=10)
-            response.raise_for_status()
-            img = Image.open(BytesIO(response.content)).convert("RGBA")
-            return await resize_youtube_thumbnail(img)
-        except Exception as e:
-            LOGGER.error(f"Image load error: {e}")
-            if os.path.exists(FALLBACK_IMAGE_PATH):
-                img = Image.open(FALLBACK_IMAGE_PATH).convert("RGBA")
-                return await resize_youtube_thumbnail(img)
-            return Image.new("RGBA", (1280, 720), (20, 20, 20, 255))
-
-def clean_text(text: str, limit: int = 25) -> str:
-    if not text: return "Unknown"
-    text = text.strip()
-    return f"{text[:limit-3]}..." if len(text) > limit else text
-
-async def add_controls(img: Image.Image) -> Image.Image:
-    # Background Blur
-    bg = img.filter(ImageFilter.GaussianBlur(radius=15))
-    bg = ImageEnhance.Brightness(bg).enhance(0.5)
+    width, height = img.size
     
-    draw = ImageDraw.Draw(bg)
-    # Box design
-    draw.rounded_rectangle((305, 125, 975, 595), radius=25, fill=(0, 0, 0, 140))
+    # Square crop based on center
+    shorter_side = min(width, height)
+    larger_size = int(size * crop_scale)
     
+    img = img.crop((
+        (width - larger_size) // 2,
+        (height - larger_size) // 2,
+        (width + larger_size) // 2,
+        (height + larger_size) // 2
+    ))
+    
+    img = img.resize((size - 2 * border_width, size - 2 * border_width), Image.Resampling.LANCZOS)
+    
+    # Create transparent canvas for the circle
+    circle_canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    
+    # Create circular mask
+    mask = Image.new("L", (size - 2 * border_width, size - 2 * border_width), 0)
+    draw_mask = ImageDraw.Draw(mask)
+    draw_mask.ellipse((0, 0, size - 2 * border_width, size - 2 * border_width), fill=255)
+    
+    # Paste image onto canvas using mask
+    circle_canvas.paste(img, (border_width, border_width), mask)
+    
+    # Draw a thin white border around the circle
+    draw_border = ImageDraw.Draw(circle_canvas)
+    draw_border.ellipse((0, 0, size, size), outline="white", width=border_width)
+    
+    return circle_canvas
+
+async def get_thumb(videoid):
+    # Return cached image if exists
+    cache_path = f"cache/{videoid}_v4.png"
+    if os.path.isfile(cache_path):
+        return cache_path
+
+    if not os.path.exists("cache"):
+        os.makedirs("cache")
+
+    # Default Metadata placeholders
+    title, duration, views, channel, thumb_url = "Unknown", "00:00", "0", "Unknown", YOUTUBE_IMG_URL
+    
+    # --- FETCH METADATA (FIX FOR "FAILED TO FETCH") ---
     try:
-        if os.path.exists("PURVIMUSIC/assets/controls.png"):
-            con = Image.open("PURVIMUSIC/assets/controls.png").convert("RGBA")
-            con = con.resize((600, 160), Image.Resampling.LANCZOS)
-            bg.paste(con, (340, 415), con)
-    except: pass
-    return bg
-
-def make_rounded_rectangle(image: Image.Image, size: tuple = (200, 200)) -> Image.Image:
-    image = ImageOps.fit(image, size, centering=(0.5, 0.5))
-    mask = Image.new("L", size, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle((0, 0, size[0], size[1]), radius=25, fill=255)
-    image.putalpha(mask)
-    return image
-
-async def get_thumb(videoid: str) -> str:
-    if not videoid: return ""
-    save_dir = f"database/photos/{videoid}.png"
-    
-    if not os.path.exists("database/photos"):
-        os.makedirs("database/photos", exist_ok=True)
-
-    title, artist, thumb_url = "Unknown Title", "Unknown Artist", ""
-
-    # --- METADATA FETCHING (FIXED) ---
-    try:
-        # Method 1: direct Video Info (Sabse fast aur accurate)
+        # High-reliability method using Video ID directly
         video_data = await Video.getInfo(f"https://www.youtube.com/watch?v={videoid}")
         if video_data:
-            title = video_data.get("title", "Unknown")
-            artist = video_data.get("channel", {}).get("name", "Unknown Artist")
+            title = video_data.get("title", "Unknown Title")
+            duration = video_data.get("duration", {}).get("label", "00:00")
+            views = video_data.get("viewCount", {}).get("short", "0 Views")
+            channel = video_data.get("channel", {}).get("name", "Unknown Channel")
+            # Get highest resolution thumbnail
             thumbnails = video_data.get("thumbnails", [])
             thumb_url = thumbnails[-1]["url"].split("?")[0] if thumbnails else f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
     except Exception as e:
-        LOGGER.error(f"Method 1 failed: {e}")
+        LOGGER.error(f"Metadata error for {videoid}: {str(e)}")
+        # Fallback to search if GetInfo fails
         try:
-            # Method 2: Search Fallback
-            results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
-            resp = await results.next()
-            if resp and "result" in resp and len(resp["result"]) > 0:
-                res = resp["result"][0]
-                title = res.get("title", "Unknown")
-                artist = res.get("channel", {}).get("name", "Unknown")
-                thumb_url = res.get("thumbnails", [{}])[0].get("url", "").split("?")[0]
-        except Exception as e2:
-            LOGGER.error(f"Method 2 failed: {e2}")
+            search = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
+            result = (await search.next())["result"][0]
+            title = result["title"]
+            duration = result.get("duration", "00:00")
+            views = result.get("viewCount", {}).get("short", "0")
+            channel = result.get("channel", {}).get("name", "Unknown")
+            thumb_url = result["thumbnails"][0]["url"].split("?")[0]
+        except:
             thumb_url = f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
+
+    # Download the thumbnail image
+    temp_thumb = f"cache/temp_{videoid}.png"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(thumb_url) as resp:
+            if resp.status == 200:
+                f = await aiofiles.open(temp_thumb, mode="wb")
+                await f.write(await resp.read())
+                await f.close()
 
     # --- IMAGE PROCESSING ---
     try:
-        raw_img = await fetch_image(thumb_url)
-        bg = await add_controls(raw_img)
-        rounded_art = make_rounded_rectangle(raw_img, size=(210, 210))
+        raw_image = Image.open(temp_thumb)
         
-        bg.paste(rounded_art, (340, 165), rounded_art)
+        # 1. Create Blurred Background
+        bg_image = resize_image(raw_image, 1280, 720)
+        background = bg_image.convert("RGBA").filter(ImageFilter.BoxBlur(25))
+        enhancer = ImageEnhance.Brightness(background)
+        background = enhancer.enhance(0.5) # Darken background
         
-        draw = ImageDraw.Draw(bg)
-        draw.text((570, 180), clean_text(title, 25), (255, 255, 255), font=FONTS["tfont"])
-        draw.text((570, 230), clean_text(artist, 30), (200, 200, 200), font=FONTS["cfont"])
+        draw = ImageDraw.Draw(background)
+        
+        # Load Fonts (Fallback to default if not found)
+        try:
+            font_path = "PURVIMUSIC/assets/font.ttf"
+            title_font = ImageFont.truetype(font_path, 45)
+            subtitle_font = ImageFont.truetype(font_path, 30)
+        except:
+            title_font = subtitle_font = ImageFont.load_default()
 
-        bg = bg.convert("RGB")
-        bg.save(save_dir, "JPEG", quality=90) # PNG ki jagah JPEG use karein fast loading ke liye
+        # 2. Add Circular Thumbnail
+        circle_art = crop_to_circle(raw_image, 400, 10)
+        background.paste(circle_art, (120, 160), circle_art)
+
+        # 3. Draw Text (Title & Channel)
+        text_x = 565
+        clean_title = re.sub(r"\W+", " ", title).title()
+        title_lines = truncate_title(clean_title)
         
-        raw_img.close()
-        bg.close()
-        return save_dir
+        draw.text((text_x, 180), title_lines[0], fill="white", font=title_font)
+        draw.text((text_x, 235), title_lines[1], fill="white", font=title_font)
+        draw.text((text_x, 320), f"{channel}  |  {views}", fill="#CCCCCC", font=subtitle_font)
+
+        # 4. Draw Modern Progress Bar
+        bar_x_start = text_x
+        bar_width = 580
+        bar_y = 385
+        
+        # Background Bar (Gray)
+        draw.line([(bar_x_start, bar_y), (bar_x_start + bar_width, bar_y)], fill="#444444", width=6)
+        # Progress Bar (Red)
+        draw.line([(bar_x_start, bar_y), (bar_x_start + 350, bar_y)], fill="#FF0000", width=6)
+        # Slider Knob (White Circle)
+        draw.ellipse([(bar_x_start + 345, bar_y - 7), (bar_x_start + 355, bar_y + 7)], fill="white")
+
+        # 5. Draw Duration Text
+        draw.text((bar_x_start, 405), "00:00", fill="white", font=subtitle_font)
+        draw.text((bar_x_start + bar_width - 80, 405), duration, fill="white", font=subtitle_font)
+
+        # 6. Paste Control Icons (If exists)
+        icon_path = "PURVIMUSIC/assets/play_icons.png"
+        if os.path.exists(icon_path):
+            icons = Image.open(icon_path).convert("RGBA")
+            icons = icons.resize((580, 62), Image.Resampling.LANCZOS)
+            background.paste(icons, (text_x, 465), icons)
+
+        # Save Final Image
+        final_image = background.convert("RGB")
+        final_image.save(cache_path, "PNG")
+        
+        # Cleanup temp files
+        if os.path.exists(temp_thumb):
+            os.remove(temp_thumb)
+            
+        return cache_path
+
     except Exception as e:
-        LOGGER.error(f"Thumbnail generation error: {e}")
-        return ""
+        LOGGER.error(f"Image generation failed: {e}")
+        return YOUTUBE_IMG_URL 
