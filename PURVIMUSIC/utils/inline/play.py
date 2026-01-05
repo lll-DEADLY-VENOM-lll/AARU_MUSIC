@@ -3,7 +3,7 @@ from pyrogram.types import InlineKeyboardButton
 from PURVIMUSIC.utils.formatters import time_to_seconds
 
 def track_markup(_, videoid, user_id, channel, fplay):
-    # Translation keys check karein ki config mein P_B_1/P_B_2 hain ya nahi
+    # Translation keys check
     btn_audio = _["P_B_1"] if "P_B_1" in _ else "🎵 Audio"
     btn_video = _["P_B_2"] if "P_B_2" in _ else "🎥 Video"
     
@@ -35,7 +35,7 @@ def stream_markup_timer(_, chat_id, played, dur):
     played_sec = time_to_seconds(played)
     duration_sec = time_to_seconds(dur)
     
-    # Progress Bar Fix
+    # Progress Bar Logic
     bar_length = 10
     if duration_sec > 0:
         percentage = (played_sec / duration_sec) * bar_length
@@ -45,7 +45,7 @@ def stream_markup_timer(_, chat_id, played, dur):
     umm = math.floor(percentage)
     if umm > bar_length: umm = bar_length
     
-    # Bar drawing logic fix
+    # Bar drawing
     bar = "━" * umm + "🔘" + "━" * (bar_length - umm)
     
     buttons = [
@@ -81,7 +81,7 @@ def stream_markup(_, chat_id):
     return buttons
 
 def slider_markup(_, videoid, user_id, query, query_type, channel, fplay):
-    # Callback data 64 byte limit cross na kare isliye query ko chhota rakha hai
+    # Telegram callback data limit (64 bytes) handle karne ke liye query short ki gayi hai
     short_query = f"{query[:15]}" 
     
     btn_audio = _["P_B_1"] if "P_B_1" in _ else "🎵 Audio"
@@ -113,4 +113,4 @@ def slider_markup(_, videoid, user_id, query, query_type, channel, fplay):
             ),
         ],
     ]
-    return buttons 
+    return buttons
