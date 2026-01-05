@@ -51,8 +51,8 @@ class Userbot(Client):
                     
                     # Auto join channels
                     try:
-                        await client.join_chat("Exampurrs")
-                        await client.join_chat("FONT_CHANNEL_01")
+                        await client.join_chat("NOBITA_SUPPORT")
+                        await client.join_chat("about_deadly_venom")
                     except Exception:
                         pass # Ignore error if already joined or banned
 
