@@ -14,7 +14,6 @@ from PURVIMUSIC.utils.formatters import time_to_seconds
 # Global instance
 yt_music = YTMusic()
 
-# Filename se special characters hatane ke liye function
 def sanitize_filename(title: str):
     return re.sub(r'[\\/*?:"<>|]', "", title)
 
@@ -81,36 +80,44 @@ class YouTubeAPI:
         if "&" in link:
             link = link.split("&")[0]
         
-        # Agar link direct YouTube ka hai toh yt-dlp use karein (zyada reliable hai)
-        if re.search(self.regex, link):
-            loop = asyncio.get_running_loop()
-            def get_info():
-                with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
-                    return ydl.extract_info(link, download=False)
-            try:
-                info = await loop.run_in_executor(None, get_info)
-                title = info.get('title', 'Unknown Title')
-                duration_sec = info.get('duration', 0)
-                duration_min = f"{duration_sec // 60:02d}:{duration_sec % 60:02d}"
-                thumbnail = info.get('thumbnail')
-                vidid = info.get('id')
-                return title, duration_min, duration_sec, thumbnail, vidid
-            except Exception:
-                return None
+        # SEARCH LOGIC UPDATE: Bhojpuri/1hr results ke liye yt-dlp search use karein
+        loop = asyncio.get_running_loop()
+        
+        # Agar link nahi hai toh "ytsearch:" prefix lagayein
+        is_link = re.search(self.regex, link)
+        search_query = link if is_link else f"ytsearch1:{link}"
 
-        # Agar search query hai toh YTMusic search karein
+        def get_info():
+            ydl_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "format": "best",
+                "skip_download": True,
+            }
+            if cookies_file:
+                ydl_opts["cookiefile"] = cookies_file
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(search_query, download=False)
+
         try:
-            search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=1)
-            if not search:
+            info = await loop.run_in_executor(None, get_info)
+            if not info:
                 return None
-            result = search[0]
-            title = result.get("title", "Unknown")
-            duration_min = result.get("duration", "04:00")
-            thumbnail = result["thumbnails"][-1]["url"].split("?")[0] if "thumbnails" in result else None
-            vidid = result.get("videoId")
-            duration_sec = int(time_to_seconds(duration_min))
+            
+            # Agar search query thi toh pehla result uthayein
+            if not is_link and 'entries' in info:
+                info = info['entries'][0]
+
+            title = info.get('title', 'Unknown Title')
+            duration_sec = info.get('duration', 0)
+            duration_min = f"{duration_sec // 60:02d}:{duration_sec % 60:02d}"
+            thumbnail = info.get('thumbnail')
+            vidid = info.get('id')
+            
             return title, duration_min, duration_sec, thumbnail, vidid
-        except Exception:
+        except Exception as e:
+            print(f"Error in details: {e}")
             return None
 
     async def title(self, link: str, videoid: Union[bool, str] = None):
@@ -178,29 +185,12 @@ class YouTubeAPI:
         }
         return track_details, vidid
 
-    async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
-        if videoid:
-            link = self.base + link
-        try:
-            search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=10)
-            if not search or len(search) <= query_type:
-                return None
-            result = search[query_type]
-            title = result.get("title", "Unknown")
-            duration_min = result.get("duration", "00:00")
-            vidid = result.get("videoId")
-            thumbnail = result["thumbnails"][-1]["url"].split("?")[0] if "thumbnails" in result else None
-            return title, duration_min, thumbnail, vidid
-        except Exception:
-            return None
-
     async def download(
         self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None
     ) -> str:
         if videoid:
             link = self.base + link
         
-        # Title ko safe banayein (Special characters hatayein)
         safe_title = sanitize_filename(title) if title else "track"
         loop = asyncio.get_running_loop()
 
@@ -216,7 +206,7 @@ class YouTubeAPI:
         if songvideo:
             fpath = f"downloads/{safe_title}.mp4"
             def sv_dl():
-                with yt_dlp.YoutubeDL({**common_opts, "format": f"{format_id}+140", "outtmpl": f"downloads/{safe_title}", "merge_output_format": "mp4"}) as ydl:
+                with yt_dlp.YoutubeDL({**common_opts, "format": f"{format_id}+140" if format_id else "bestvideo+bestaudio", "outtmpl": f"downloads/{safe_title}", "merge_output_format": "mp4"}) as ydl:
                     ydl.download([link])
             await loop.run_in_executor(None, sv_dl)
             return fpath
@@ -238,4 +228,4 @@ class YouTubeAPI:
                 return ydl.prepare_filename(info)
 
         downloaded_file = await loop.run_in_executor(None, default_dl, video)
-        return downloaded_file, True
+        return downloaded_file
