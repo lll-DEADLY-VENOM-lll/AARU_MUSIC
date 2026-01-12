@@ -2,37 +2,59 @@ import asyncio
 import os
 import re
 from typing import Union
+
 import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
-from ytmusicapi import YTMusic
+from ytmusicapi import YTMusic # Updated library
 
-# Global instance for YT Music
+from PURVIMUSIC.utils.database import is_on_off
+from PURVIMUSIC.utils.formatters import time_to_seconds
+
+# Global instance of YTMusic for faster performance
 yt_music = YTMusic()
 
-def time_to_seconds(time):
-    try:
-        string_format = sum(60**i * int(x) for i, x in enumerate(reversed(time.split(':'))))
-        return string_format
-    except:
-        return 0
+async def shell_cmd(cmd):
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, errorz = await proc.communicate()
+    if errorz:
+        if "unavailable videos are hidden" in (errorz.decode("utf-8")).lower():
+            return out.decode("utf-8")
+        else:
+            return errorz.decode("utf-8")
+    return out.decode("utf-8")
+
+# If you don't have cookies.txt, it will still work but might get blocked later
+cookies_file = "PURVIMUSIC/cookies.txt"
+if not os.path.exists(cookies_file):
+    cookies_file = None
 
 class YouTubeAPI:
     def __init__(self):
         self.base = "https://www.youtube.com/watch?v="
-        self.regex = r"(?:youtube\.com|youtu\.be|music\.youtube\.com)"
-        self.cookies = "PURVIMUSIC/cookies.txt"
+        self.regex = r"(?:youtube\.com|youtu\.be)"
+        self.status = "https://www.youtube.com/oembed?url="
+        self.listbase = "https://youtube.com/playlist?list="
+        self.reg = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
-    # --- Telegram Message se URL nikalne ke liye (Fixed AttributeError) ---
+    async def exists(self, link: str, videoid: Union[bool, str] = None):
+        if videoid:
+            link = self.base + link
+        if re.search(self.regex, link):
+            return True
+        return False
+
     async def url(self, message_1: Message) -> Union[str, None]:
         messages = [message_1]
         if message_1.reply_to_message:
             messages.append(message_1.reply_to_message)
-        
         text = ""
         offset = None
         length = None
-        
         for message in messages:
             if offset:
                 break
@@ -46,74 +68,53 @@ class YouTubeAPI:
                 for entity in message.caption_entities:
                     if entity.type == MessageEntityType.TEXT_LINK:
                         return entity.url
-                        
         if offset in (None,):
             return None
         return text[offset : offset + length]
 
-    async def exists(self, link: str):
-        if re.search(self.regex, link):
-            return True
-        return False
-
-    # --- Gaane ki details (SABR Fix ke saath) ---
+    # --- Fixed with YTMusic API ---
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
+        
+        # Search official songs on YT Music
+        search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=1)
+        if not search:
+            return None
+        
+        result = search[0]
+        title = result["title"]
+        duration_min = result.get("duration", "04:00")
+        thumbnail = result["thumbnails"][-1]["url"].split("?")[0]
+        vidid = result["videoId"]
+        duration_sec = int(time_to_seconds(duration_min))
+        
+        return title, duration_min, duration_sec, thumbnail, vidid
 
-        # SABR error bypass settings
-        ydl_opts = {
-            "quiet": True,
-            "cookiefile": self.cookies if os.path.exists(self.cookies) else None,
-            "geo_bypass": True,
-            "extractor_args": {"youtube": {"player_client": ["android", "web"], "player_skip": ["webpage"]}},
-            "user_agent": "Mozilla/5.0 (Android 14; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0"
-        }
+    async def title(self, link: str, videoid: Union[bool, str] = None):
+        res = await self.details(link, videoid)
+        return res[0] if res else "Unknown"
 
-        if await self.exists(link):
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = await asyncio.to_thread(ydl.extract_info, link, download=False)
-                title = info['title']
-                duration_sec = info.get('duration', 0)
-                duration_min = f"{duration_sec // 60:02d}:{duration_sec % 60:02d}"
-                thumbnail = info.get('thumbnail')
-                vidid = info['id']
-                return title, duration_min, duration_sec, thumbnail, vidid
-        else:
-            # YouTube Music Search
-            search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=1)
-            if not search:
-                return None
-            result = search[0]
-            title = result["title"]
-            duration_min = result.get("duration", "04:00")
-            thumbnail = result["thumbnails"][-1]["url"].split("?")[0]
-            vidid = result["videoId"]
-            duration_sec = int(time_to_seconds(duration_min))
-            return title, duration_min, duration_sec, thumbnail, vidid
+    async def duration(self, link: str, videoid: Union[bool, str] = None):
+        res = await self.details(link, videoid)
+        return res[1] if res else "00:00"
 
-    # --- Direct Stream Link (SABR Fix & Android Client Force) ---
+    async def thumbnail(self, link: str, videoid: Union[bool, str] = None):
+        res = await self.details(link, videoid)
+        return res[3] if res else None
+
     async def video(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
-        link = link.replace("music.youtube.com", "youtube.com")
-
-        opts = [
-            "yt-dlp",
-            "-g",
-            "--force-ipv4",
-            "--no-warnings",
-            # SABR aur 'missing url' error ko bypass karne ke liye android client force karein
-            "--extractor-args", "youtube:player_client=android,web;player_skip=webpage",
-            "-f", "bestaudio/best",
-            f"{link}"
-        ]
-
-        if os.path.exists(self.cookies):
+        if "&" in link:
+            link = link.split("&")[0]
+        
+        opts = ["yt-dlp", "-g", "-f", "best[height<=?720][width<=?1280]", f"{link}"]
+        if cookies_file:
             opts.insert(1, "--cookies")
-            opts.insert(2, self.cookies)
+            opts.insert(2, cookies_file)
 
         proc = await asyncio.create_subprocess_exec(
             *opts,
@@ -121,35 +122,32 @@ class YouTubeAPI:
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
-
         if stdout:
-            return 1, stdout.decode().split("\n")[0].strip()
+            return 1, stdout.decode().split("\n")[0]
         else:
-            error_msg = stderr.decode()
-            print(f"YT-DLP ERROR: {error_msg}")
-            return 0, error_msg
+            return 0, stderr.decode()
 
-    # --- Playlist extraction ---
-    async def playlist(self, link, limit):
-        cookie_cmd = f"--cookies {self.cookies}" if os.path.exists(self.cookies) else ""
-        # Flat playlist optimization
-        command = f"yt-dlp {cookie_cmd} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
+    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
+        if videoid:
+            link = self.listbase + link
+        if "&" in link:
+            link = link.split("&")[0]
         
-        proc = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        cookie_cmd = f"--cookies {cookies_file}" if cookies_file else ""
+        playlist = await shell_cmd(
+            f"yt-dlp {cookie_cmd} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
         )
-        stdout, stderr = await proc.communicate()
-        if stdout:
-            return [k for k in stdout.decode().split("\n") if k]
-        return []
+        try:
+            result = [k for k in playlist.split("\n") if k != ""]
+        except:
+            result = []
+        return result
 
-    # --- Track info getter ---
     async def track(self, link: str, videoid: Union[bool, str] = None):
         res = await self.details(link, videoid)
         if not res:
             return None, None
+        
         title, duration_min, duration_sec, thumbnail, vidid = res
         track_details = {
             "title": title,
@@ -160,29 +158,75 @@ class YouTubeAPI:
         }
         return track_details, vidid
 
-    # --- Download method ---
-    async def download(self, link: str, title: str, songaudio=False):
-        if "&" in link:
-            link = link.split("&")[0]
+    async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
+        if videoid:
+            link = self.base + link
         
-        loop = asyncio.get_running_loop()
-        fpath = os.path.join("downloads", f"{title}.mp3")
+        # Get top 10 results from YT Music
+        search = await asyncio.to_thread(yt_music.search, link, filter="songs", limit=10)
+        result = search[query_type]
+        
+        title = result["title"]
+        duration_min = result.get("duration", "00:00")
+        vidid = result["videoId"]
+        thumbnail = result["thumbnails"][-1]["url"].split("?")[0]
+        return title, duration_min, thumbnail, vidid
 
-        def dl():
-            ydl_opts = {
-                "format": "bestaudio/best",
-                "outtmpl": f"downloads/{title}.%(ext)s",
-                "cookiefile": self.cookies if os.path.exists(self.cookies) else None,
-                "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
-                "postprocessors": [{
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }],
-                "quiet": True,
-            }
+    async def download(
+        self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None
+    ) -> str:
+        if videoid:
+            link = self.base + link
+        loop = asyncio.get_running_loop()
+
+        common_opts = {
+            "geo_bypass": True,
+            "nocheckcertificate": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+        if cookies_file:
+            common_opts["cookiefile"] = cookies_file
+
+        def audio_dl():
+            ydl_opts = {**common_opts, "format": "bestaudio/best", "outtmpl": "downloads/%(id)s.%(ext)s"}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([link])
+                info = ydl.extract_info(link, False)
+                path = os.path.join("downloads", f"{info['id']}.{info['ext']}")
+                if not os.path.exists(path):
+                    ydl.download([link])
+                return path
+
+        def video_dl():
+            ydl_opts = {**common_opts, "format": "(bestvideo[height<=?720][width<=?1280][ext=mp4])+(bestaudio[ext=m4a])", "outtmpl": "downloads/%(id)s.%(ext)s"}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(link, False)
+                path = os.path.join("downloads", f"{info['id']}.{info['ext']}")
+                if not os.path.exists(path):
+                    ydl.download([link])
+                return path
+
+        if songvideo:
+            fpath = f"downloads/{title}.mp4"
+            def sv_dl():
+                with yt_dlp.YoutubeDL({**common_opts, "format": f"{format_id}+140", "outtmpl": f"downloads/{title}", "merge_output_format": "mp4"}) as ydl:
+                    ydl.download([link])
+            await loop.run_in_executor(None, sv_dl)
             return fpath
 
-        return await loop.run_in_executor(None, dl)
+        elif songaudio:
+            fpath = f"downloads/{title}.mp3"
+            def sa_dl():
+                with yt_dlp.YoutubeDL({**common_opts, "format": format_id, "outtmpl": f"downloads/{title}.%(ext)s", "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]}) as ydl:
+                    ydl.download([link])
+            await loop.run_in_executor(None, sa_dl)
+            return fpath
+
+        elif video:
+            direct = True
+            downloaded_file = await loop.run_in_executor(None, video_dl)
+        else:
+            direct = True
+            downloaded_file = await loop.run_in_executor(None, audio_dl)
+        
+        return downloaded_file, direct
