@@ -185,4 +185,4 @@ class YouTubeAPI:
                 ydl.download([link])
             return fpath
 
-        return await loop.run_in_executor(None, dl)o
+        return await loop.run_in_executor(None, dl)
