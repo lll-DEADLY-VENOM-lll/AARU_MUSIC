@@ -12,7 +12,7 @@ from PURVIMUSIC.utils.formatters import time_to_seconds
 
 # --- CONFIGURATION ---
 # Get your API KEY from https://console.cloud.google.com/
-API_KEY = "" 
+API_KEY = "AIzaSyAfG6kmGSSS0p2NM5nrMoGlhxit1whQvPk" 
 
 # Global instance of YouTube API
 youtube = build("youtube", "v3", developerKey=API_KEY)
