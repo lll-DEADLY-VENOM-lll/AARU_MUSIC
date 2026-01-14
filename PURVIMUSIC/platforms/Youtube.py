@@ -8,7 +8,7 @@ from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from googleapiclient.discovery import build # Official Google API
 
-from BIGFM.utils.formatters import time_to_seconds
+from PURVIMUSIC.utils.formatters import time_to_seconds
 
 # --- CONFIGURATION ---
 # Get your API KEY from https://console.cloud.google.com/
@@ -32,7 +32,7 @@ async def shell_cmd(cmd):
     return out.decode("utf-8")
 
 # Cookies handling for yt-dlp
-cookies_file = "BIGFM/cookies.txt"
+cookies_file = "PURVIMUSIC/cookies.txt"
 if not os.path.exists(cookies_file):
     cookies_file = None
 
