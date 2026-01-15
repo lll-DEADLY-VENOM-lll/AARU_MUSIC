@@ -17,7 +17,7 @@ BOT_TOKEN = getenv("BOT_TOKEN", None) # @BotFather se mila hua token
 # --- YOUTUBE API KEYS (3 KEYS SYSTEM) ---
 # --- Pehle Key 1 use hogi, quota khatam hone par Key 2, phir Key 3 ---
 # -----------------------------------------------------------------
-YT_API_KEY = getenv("YT_API_KEY", "AIzaSyC_yPuJD0S75qMQFg-WobboAEPRjHXpl1M")
+YT_API_KEY_1 = getenv("YT_API_KEY_1", "AIzaSyC_yPuJD0S75qMQFg-WobboAEPRjHXpl1M")
 YT_API_KEY_2 = getenv("YT_API_KEY_2", "AIzaSyB5ofI6tA5S-fX1cCKvXuompJKnJRiv1SE")
 YT_API_KEY_3 = getenv("YT_API_KEY_3", "")
 
