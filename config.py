@@ -6,28 +6,27 @@ from pyrogram import filters
 load_dotenv()
 
 # --- BASIC BOT CONFIGURATION ---
-API_ID = int(getenv("API_ID", "")) # my.telegram.org se lein
-API_HASH = getenv("API_HASH", "") # my.telegram.org se lein
-BOT_TOKEN = getenv("BOT_TOKEN") # @BotFather se lein
+API_ID = int(getenv("API_ID", "")) 
+API_HASH = getenv("API_HASH", "") 
+BOT_TOKEN = getenv("BOT_TOKEN") 
 MONGO_DB_URI = getenv("MONGO_DB_URI", None)
 
 # -----------------------------------------------------------------
 # YOUTUBE API KEYS (MULTI-KEY SUPPORT)
-# Yahan apni keys ko comma (,) se alag karke likhein
 # -----------------------------------------------------------------
 API_KEY = getenv("API_KEY", "AIzaSyC_yPuJD0S75qMQFg-WobboAEPRjHXpl1M, AIzaSyB5ofI6tA5S-fX1cCKvXuompJKnJRiv1SE")
 # -----------------------------------------------------------------
 
-# --- BOT & OWNER DETAILS (MISSING VARS ADDED) ---
+# --- BOT & OWNER DETAILS ---
 BOT_NAME = getenv("BOT_NAME", "PURVI MUSIC")
-BOT_USERNAME = getenv("BOT_USERNAME", "NIKKU_ROBOT") # Plugins ke liye zaroori
+BOT_USERNAME = getenv("BOT_USERNAME", "NIKKU_ROBOT") 
 OWNER_ID = int(getenv("OWNER_ID", "7967418569"))
 OWNER_USERNAME = getenv("OWNER_USERNAME", "VNI0X")
-ASSUSERNAME = getenv("ASSUSERNAME", "PURVI_ASSISTANT") # Assistant ka username
+ASSUSERNAME = getenv("ASSUSERNAME", "PURVI_ASSISTANT") 
 
-# --- LIMITS & TIMEOUTS (MISSING VARS ADDED) ---
+# --- LIMITS & TIMEOUTS ---
 DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 300))
-SONG_DOWNLOAD_DURATION = int(getenv("SONG_DOWNLOAD_DURATION", "999999")) # Plugins ke liye zaroori
+SONG_DOWNLOAD_DURATION = int(getenv("SONG_DOWNLOAD_DURATION", "999999")) 
 SONG_DOWNLOAD_DURATION_LIMIT = int(getenv("SONG_DOWNLOAD_DURATION_LIMIT", "999999"))
 PLAYLIST_FETCH_LIMIT = int(getenv("PLAYLIST_FETCH_LIMIT", 25))
 
@@ -64,14 +63,19 @@ STRING3 = getenv("STRING_SESSION3", None)
 STRING4 = getenv("STRING_SESSION4", None)
 STRING5 = getenv("STRING_SESSION5", None)
 
-# --- IMAGES ---
+# --- IMAGES (SABHI MISSING LINKS ADDED) ---
 START_IMG_URL = getenv("START_IMG_URL", "https://graph.org/file/9e3513de206670417d884-6529b8b9f8f6748812.jpg")
 PING_IMG_URL = getenv("PING_IMG_URL", "https://graph.org/file/062f851978de03808885f-eb92d34cde8511a7d6.jpg")
 PLAYLIST_IMG_URL = "https://graph.org/file/df60a4160209a6ca58eb2-6473d069fe73f4f397.jpg"
 STATS_IMG_URL = "https://telegra.ph/file/edd388a42dd2c499fd868.jpg"
 TELEGRAM_AUDIO_URL = "https://telegra.ph/file/492a3bb2e880d19750b79.jpg"
-YOUTUBE_IMG_URL = "https://graph.org/file/e8730fdece86a1166f608.jpg"
+TELEGRAM_VIDEO_URL = "https://telegra.ph/file/492a3bb2e880d19750b79.jpg"
 STREAM_IMG_URL = "https://graph.org/file/ff2af8d4d10afa1baf49e.jpg"
+SOUNCLOUD_IMG_URL = "https://graph.org/file/c95a687e777b55be1c792.jpg" # Ye missing tha
+YOUTUBE_IMG_URL = "https://graph.org/file/e8730fdece86a1166f608.jpg"
+SPOTIFY_ARTIST_IMG_URL = "https://graph.org/file/0bb6f36796d496b4254ff.jpg"
+SPOTIFY_ALBUM_IMG_URL = "https://graph.org/file/0bb6f36796d496b4254ff.jpg"
+SPOTIFY_PLAYLIST_IMG_URL = "https://graph.org/file/0bb6f36796d496b4254ff.jpg"
 
 # --- INTERNAL VARS ---
 BANNED_USERS = filters.user()
