@@ -18,8 +18,8 @@ BOT_TOKEN = getenv("BOT_TOKEN", None) # @BotFather se mila hua token
 # --- Pehle Key 1 use hogi, quota khatam hone par Key 2, phir Key 3 ---
 # -----------------------------------------------------------------
 YT_API_KEY = getenv("YT_API_KEY", "AIzaSyC_yPuJD0S75qMQFg-WobboAEPRjHXpl1M")
-YT_API_KEY_2 = getenv("YT_API_KEY_2", "PASTE_SECOND_KEY_HERE")
-YT_API_KEY_3 = getenv("YT_API_KEY_3", "PASTE_THIRD_KEY_HERE")
+YT_API_KEY_2 = getenv("YT_API_KEY_2", "AIzaSyB5ofI6tA5S-fX1cCKvXuompJKnJRiv1SE")
+YT_API_KEY_3 = getenv("YT_API_KEY_3", "")
 
 # Cookies Path (YouTube block se bachne ke liye)
 # Is file ko PURVIMUSIC folder ke andar hona chahiye
